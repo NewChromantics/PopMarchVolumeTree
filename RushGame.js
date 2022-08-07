@@ -9,9 +9,11 @@ import Pop from './PopEngine/PopEngine.js'
 import GetBlitPixelTestRenderCommands from './BlitPixelsTest.js'
 import ParseMagicaVox from './PopEngine/MagicaVox.js'
 import {JoinTypedArrays} from './PopEngine/PopApi.js'
-import {GetZeroFloatArray} from './PopEngine/PopApi.js'
+import {GetZeroFloatArray,SplitArrayIntoChunks} from './PopEngine/PopApi.js'
 import DirtyBuffer from './PopEngine/DirtyBuffer.js'
 
+
+const CubeSize = 0.01;
 
 
 let DropAll = false;
@@ -161,7 +163,6 @@ function GetRenderCommandsUpdatePhysicsTextures(RenderContext,VoxelBuffer,Projec
 			return 0;
 		}
 		const UsefulProjectiles = Projectiles.slice().sort(CompareProjectiles);
-		
 		function GetProjectilePos(xxx,Index)
 		{
 			if ( Index >= UsefulProjectiles.length )
@@ -176,7 +177,7 @@ function GetRenderCommandsUpdatePhysicsTextures(RenderContext,VoxelBuffer,Projec
 			const Projectile = UsefulProjectiles[Index];
 			return [...Projectile.PrevPosition,1];
 		}
-		const MAX_PROJECTILES = 100;
+		const MAX_PROJECTILES = 300;
 		let ProjectilePrevPos = new Array(MAX_PROJECTILES).fill(0).map( GetProjectilePrevPos );
 		let ProjectileNextPos = new Array(MAX_PROJECTILES).fill(0).map( GetProjectilePos );
 	
@@ -525,10 +526,9 @@ let AppCamera = new Camera_t();
 //	try and emulate default XR pose a bit
 AppCamera.Position = [0,1.5,0];
 AppCamera.LookAt = [0,1.5,-1];
-AppCamera.FovVertical = 90;
+AppCamera.FovVertical = 45;
 let DefaultDepthTexture = CreateRandomImage(16,16);
-let VoxelCenterPosition = [0,0,AppCamera.LookAt[2]];//AppCamera.LookAt.slice();
-let CubeSize = 0.02;
+let VoxelCenterPosition = [-0.5,0,AppCamera.LookAt[2]-0.5];//AppCamera.LookAt.slice();
 
 
 const LocalToWorldTransforms = new Float32Array( new Array(CubeCount).fill(0).map( GetCubeLocalToWorldN ).flat(2) );
@@ -1124,6 +1124,7 @@ class Game_t
 	
 	OnWeaponFired(Weapon)
 	{
+		return;
 		//	create game projectile as a voxel
 		for ( let i=0;	i<10;	i++ )
 		{
@@ -1304,7 +1305,8 @@ class Game_t
 		//	we store all our voxels in one big buffer
 		this.VoxelBuffer = new VoxelBuffer_t();
 		
-		const LoadFile = `Models/Taxi.vox`;
+		const LoadFile = `Models/NickMesh.json`;
+		//const LoadFile = `Models/Taxi.vox`;
 		//const LoadFile = `Models/Skeleton.vox`;
 		//const LoadFile = false;
 		
@@ -1314,7 +1316,7 @@ class Game_t
 			this.VoxelBuffer.LoadPositions( Positions, RandomColours, VoxelCenterPosition, 0.4 );
 		}
 		
-		if ( LoadFile )
+		if ( LoadFile.endsWith('.vox') )
 		{
 			const VoxContents = await Pop.FileSystem.LoadFileAsArrayBufferAsync(LoadFile);
 			
@@ -1363,6 +1365,39 @@ class Game_t
 			this.VoxelBuffer.LoadPositions( Geometry.Positions, Geometry.Colours, VoxelCenterPosition, 0.0 );
 		}
 			
+		if ( LoadFile.endsWith('.json') )
+		{
+			const FileContents = await Pop.FileSystem.LoadFileAsStringAsync(LoadFile);
+			const MeshJson = JSON.parse(FileContents);
+			
+			let Texcoords = SplitArrayIntoChunks( MeshJson.Texcoords, 2 );
+			let Positoins = SplitArrayIntoChunks( MeshJson.Positions, 3 );
+
+			function TweakColour(uv)
+			{
+				return [...uv,0,1];
+			}
+			
+			function TweakPosition(Pos,Index)
+			{
+				let Noise = (Index % 2) * (Math.random() * 2.0 * CubeSize);
+				let Scale = 0.011 / CubeSize;
+				let x = Pos[1] * Scale + Noise;
+				let y = Pos[0] * Scale + Noise;
+				let z = Pos[2] * Scale + Noise;
+				let xyz = [x,y,z];
+				xyz = Add3( xyz, VoxelCenterPosition );
+				return xyz;
+			}
+			
+			const Geometry = {};
+			Geometry.Colours = Texcoords.map(TweakColour).filter( x=>x != null );
+			Geometry.Positions = Positoins.map(TweakPosition).filter( x=>x != null );
+			
+			Geometry.Colours = new Float32Array(Geometry.Colours.flat(2));
+			
+			this.VoxelBuffer.LoadPositions( Geometry.Positions, Geometry.Colours, VoxelCenterPosition, 0.0 );
+		}
 	}
 	
 	async RunGameIteration()

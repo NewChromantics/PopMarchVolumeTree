@@ -16,7 +16,7 @@ const float FloorDragMin = 0.4;	//	less = more bounce
 const float FloorDragMax = 0.8;	//	less = more bounce
 const float GravityY = -16.0;
 
-#define MAX_PROJECTILES	100
+#define MAX_PROJECTILES	300
 //	projectile should probably be oldpos newpos to get force, pos, and not miss a fast projectile
 uniform vec4 ProjectilePrevPos[MAX_PROJECTILES];
 uniform vec4 ProjectileNextPos[MAX_PROJECTILES];
@@ -34,12 +34,13 @@ const float FloorY = 0.0;
 #define NearFloorY	(FloorY+0.02)
 
 uniform float DropAll;
-#define DROP_ALL	(DropAll>0.5)
+//#define DROP_ALL	(DropAll>0.5)
+#define DROP_ALL	false
 
 #define mat_identity	mat4(1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1 )
 
 
-
+#define TestForOccupancyHit	false
 uniform sampler2D OccupancyMapTexture;
 uniform vec2 OccupancyMapTextureSize;
 uniform vec3 OccupancyMapWorldMin;
@@ -391,7 +392,7 @@ void main()
 
 	//	do collisions with world
 	vec3 NewVelocity = Velocity.xyz + (Force*Timestep);
-	if ( length(NewVelocity) > 0.0 )
+	if ( length(NewVelocity) > 0.0 && TestForOccupancyHit )
 	{
 		//	get next occupancy position
 		vec3 HitNormal;
